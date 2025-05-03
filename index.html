@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中学校英単語学習アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* 日本語フォントと基本フォントの設定 */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            /* よりソフトな背景色 */
+            background-color: #f0f9ff; /* sky-50 */
+        }
+        /* ボタンやカードの角を丸める */
+        .card, button {
+            border-radius: 0.75rem; /* rounded-xl */
+        }
+        /* ボタンホバー時のエフェクト */
+        button:hover {
+            opacity: 0.9;
+        }
+        /* フィードバックメッセージのアニメーション */
+        .feedback-enter-active, .feedback-leave-active {
+            transition: opacity 0.5s ease;
+        }
+        .feedback-enter-from, .feedback-leave-to {
+            opacity: 0;
+        }
+        /* 選択肢ボタンのスタイル */
+        .option-button {
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        .option-button:active {
+            transform: scale(0.98);
+        }
+        /* 正解・不正解時のスタイル */
+        .correct {
+            background-color: #dcfce7 !important; /* green-100 */
+            color: #166534; /* green-800 */
+            border: 2px solid #22c55e; /* green-500 */
+        }
+        .incorrect {
+            background-color: #fee2e2 !important; /* red-100 */
+            color: #991b1b; /* red-800 */
+            border: 2px solid #ef4444; /* red-500 */
+        }
+        /* プログレスバー */
+        .progress-bar-inner {
+            transition: width 0.5s ease-in-out;
+            background-color: #3b82f6; /* blue-500 */
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div id="app" class="w-full max-w-md mx-auto">
+        <div id="start-screen" class="text-center card bg-white p-8 shadow-lg">
+            <h1 class="text-3xl font-bold mb-4 text-sky-700">英単語学習</h1>
+            <p class="text-gray-600 mb-6">中学校レベルの英単語をマスターしよう！</p>
+            <button id="start-button" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-300 ease-in-out">
+                クイズ開始
+            </button>
+             <button id="review-button" class="mt-4 w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-300 ease-in-out hidden">
+                間違えた単語を復習
+            </button>
+        </div>
+
+        <div id="quiz-screen" class="hidden card bg-white p-6 md:p-8 shadow-lg">
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>進捗</span>
+                    <span id="progress-text">0/10</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="progress-bar-inner h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <p class="text-sm text-gray-500 mb-2 text-center">この英単語の意味は？</p>
+            <h2 id="word-display" class="text-4xl font-bold mb-6 text-center text-sky-800 break-words"></h2>
+            <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                </div>
+            <div id="feedback" class="mt-6 text-center font-bold text-lg h-8"></div>
+            <button id="next-button" class="mt-4 w-full bg-gray-400 text-white font-bold py-3 px-4 rounded-lg shadow hidden">
+                次へ
+            </button>
+             <button id="finish-button" class="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow hidden">
+                結果を見る
+            </button>
+        </div>
+
+        <div id="result-screen" class="hidden text-center card bg-white p-8 shadow-lg">
+            <h2 class="text-2xl font-bold mb-4 text-sky-700">クイズ終了！</h2>
+            <p id="score-display" class="text-xl mb-6 text-gray-700"></p>
+            <p class="text-gray-600 mb-2">間違えた単語:</p>
+            <ul id="mistakes-list" class="list-disc list-inside text-left mb-6 text-red-600 max-h-40 overflow-y-auto p-2 border rounded-md bg-red-50">
+                </ul>
+            <div class="flex flex-col sm:flex-row gap-4">
+                 <button id="restart-button" class="w-full sm:w-1/2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-300 ease-in-out">
+                    もう一度挑戦
+                 </button>
+                 <button id="review-mistakes-button" class="w-full sm:w-1/2 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                    間違えた単語を復習
+                 </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Vocabulary Data ---
+        // IMPORTANT: Replace this with the actual MEXT 1200-word list.
+        // 重要：このリストを実際の文部科学省指定の1200語リストに置き換えてください。
+        const vocabulary = [
+            { english: 'apple', japanese: 'りんご' },
+            { english: 'book', japanese: '本' },
+            { english: 'cat', japanese: '猫' },
+            { english: 'dog', japanese: '犬' },
+            { english: 'egg', japanese: '卵' },
+            { english: 'flower', japanese: '花' },
+            { english: 'go', japanese: '行く' },
+            { english: 'house', japanese: '家' },
+            { english: 'ice', japanese: '氷' },
+            { english: 'jump', japanese: '跳ぶ' },
+            { english: 'key', japanese: '鍵' },
+            { english: 'like', japanese: '好む' },
+            { english: 'moon', japanese: '月' },
+            { english: 'note', japanese: 'メモ' },
+            { english: 'open', japanese: '開ける' },
+            { english: 'pen', japanese: 'ペン' },
+            { english: 'queen', japanese: '女王' },
+            { english: 'run', japanese: '走る' },
+            { english: 'sun', japanese: '太陽' },
+            { english: 'tree', japanese: '木' },
+            { english: 'under', japanese: '〜の下に' },
+            { english: 'visit', japanese: '訪れる' },
+            { english: 'water', japanese: '水' },
+            { english: 'box', japanese: '箱' },
+            { english: 'year', japanese: '年' },
+            { english: 'zoo', japanese: '動物園' },
+            { english: 'always', japanese: 'いつも' },
+            { english: 'beautiful', japanese: '美しい' },
+            { english: 'cloud', japanese: '雲' },
+            { english: 'drink', japanese: '飲む' }
+            // Add more words here... (ここに単語を追加...)
+        ];
+
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const startButton = document.getElementById('start-button');
+        const reviewButton = document.getElementById('review-button'); // Main review button
+        const wordDisplay = document.getElementById('word-display');
+        const optionsContainer = document.getElementById('options-container');
+        const feedback = document.getElementById('feedback');
+        const nextButton = document.getElementById('next-button');
+        const finishButton = document.getElementById('finish-button');
+        const scoreDisplay = document.getElementById('score-display');
+        const mistakesList = document.getElementById('mistakes-list');
+        const restartButton = document.getElementById('restart-button');
+        const reviewMistakesButton = document.getElementById('review-mistakes-button'); // Result screen review button
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+
+        // --- Game State ---
+        let currentWord = null;
+        let score = 0;
+        let questionsAsked = 0;
+        const questionsPerRound = 10; // 1ラウンドあたりの問題数
+        let currentQuizWords = []; // 現在のクイズで使用する単語リスト
+        let incorrectWordsInRound = []; // このラウンドで間違えた単語
+        let isReviewMode = false; // 復習モードかどうか
+
+        // --- Load Mistakes from Local Storage ---
+        // ローカルストレージから間違えた単語を読み込む
+        let persistentIncorrectWords = JSON.parse(localStorage.getItem('persistentIncorrectWords_v1')) || [];
+
+        // --- Utility Functions ---
+        // Fisher-Yates (aka Knuth) Shuffle Algorithm
+        // 配列をシャッフルする関数
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Get random elements from an array, excluding a specific item
+        // 配列から指定された項目を除外してランダムな要素を取得する関数
+        function getRandomElements(arr, num, excludeItem) {
+            const filteredArr = arr.filter(item => item !== excludeItem);
+            shuffleArray(filteredArr);
+            return filteredArr.slice(0, num);
+        }
+
+        // --- Game Logic ---
+        // クイズの単語リストを準備する関数
+        function prepareQuizWords() {
+            let availableWords = [...vocabulary]; // 全語彙からコピー
+            shuffleArray(availableWords);
+
+            if (isReviewMode) {
+                // 復習モード：間違えた単語リストから出題
+                currentQuizWords = shuffleArray([...persistentIncorrectWords]);
+                if (currentQuizWords.length === 0) {
+                     alert("復習する単語がありません。");
+                     showStartScreen(); // 復習単語がなければスタート画面へ
+                     return false;
+                }
+            } else {
+                 // 通常モード：全語彙からランダムに出題
+                 // 復習単語を優先的に含める（例：30%の確率で復習単語を選ぶ）
+                 let priorityWords = shuffleArray([...persistentIncorrectWords]);
+                 let regularWords = availableWords.filter(word => !persistentIncorrectWords.some(pw => pw.english === word.english));
+                 let combinedWords = [];
+
+                 while(combinedWords.length < questionsPerRound && (priorityWords.length > 0 || regularWords.length > 0)) {
+                     if (priorityWords.length > 0 && (regularWords.length === 0 || Math.random() < 0.3)) {
+                         combinedWords.push(priorityWords.shift());
+                     } else if (regularWords.length > 0) {
+                         combinedWords.push(regularWords.shift());
+                     }
+                 }
+                 // Ensure unique words
+                 const uniqueWords = [];
+                 const seenEngWords = new Set();
+                 for (const word of combinedWords) {
+                     if (!seenEngWords.has(word.english)) {
+                         uniqueWords.push(word);
+                         seenEngWords.add(word.english);
+                     }
+                 }
+
+                 // Ensure we have enough questions
+                 while (uniqueWords.length < questionsPerRound && regularWords.length > 0) {
+                    let nextWord = regularWords.shift();
+                    if (!seenEngWords.has(nextWord.english)) {
+                        uniqueWords.push(nextWord);
+                        seenEngWords.add(nextWord.english);
+                    }
+                 }
+                 currentQuizWords = uniqueWords.slice(0, questionsPerRound); // Ensure exactly questionsPerRound words if possible
+            }
+            return true;
+        }
+
+        // 問題を表示する関数
+        function displayQuestion() {
+            if (questionsAsked >= currentQuizWords.length) {
+                showResultScreen();
+                return;
+            }
+
+            currentWord = currentQuizWords[questionsAsked];
+            wordDisplay.textContent = currentWord.english;
+            feedback.textContent = '';
+            feedback.className = 'mt-6 text-center font-bold text-lg h-8'; // Reset feedback style
+            optionsContainer.innerHTML = ''; // Clear previous options
+
+            // Create options
+            const correctAnswer = currentWord.japanese;
+            const incorrectAnswers = getRandomElements(vocabulary.map(v => v.japanese), 3, correctAnswer);
+            const options = shuffleArray([correctAnswer, ...incorrectAnswers]);
+
+            // Display options as buttons
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.classList.add('option-button', 'w-full', 'bg-white', 'hover:bg-sky-100', 'text-sky-800', 'font-semibold', 'py-3', 'px-4', 'border', 'border-sky-200', 'rounded-lg', 'shadow-sm');
+                button.onclick = () => checkAnswer(option, button);
+                optionsContainer.appendChild(button);
+            });
+
+            // Update progress bar
+            const progressPercentage = ((questionsAsked + 1) / currentQuizWords.length) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+            progressText.textContent = `${questionsAsked + 1}/${currentQuizWords.length}`;
+
+            nextButton.classList.add('hidden'); // Hide next button until answer is checked
+            finishButton.classList.add('hidden');
+        }
+
+        // 回答をチェックする関数
+        function checkAnswer(selectedOption, button) {
+            // Disable all option buttons after selection
+            const buttons = optionsContainer.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            questionsAsked++;
+
+            if (selectedOption === currentWord.japanese) {
+                // Correct answer
+                score++;
+                feedback.textContent = '正解！🎉';
+                feedback.classList.add('text-green-600');
+                button.classList.remove('hover:bg-sky-100', 'border-sky-200');
+                button.classList.add('correct');
+
+                // If it was a previously incorrect word and answered correctly in review mode, remove it
+                if (isReviewMode) {
+                    persistentIncorrectWords = persistentIncorrectWords.filter(word => word.english !== currentWord.english);
+                    localStorage.setItem('persistentIncorrectWords_v1', JSON.stringify(persistentIncorrectWords));
+                }
+
+            } else {
+                // Incorrect answer
+                feedback.innerHTML = `不正解... 正解は「<span class="font-bold text-red-700">${currentWord.japanese}</span>」`;
+                feedback.classList.add('text-red-600');
+                button.classList.remove('hover:bg-sky-100', 'border-sky-200');
+                button.classList.add('incorrect');
+
+                // Highlight correct answer
+                 buttons.forEach(btn => {
+                    if (btn.textContent === currentWord.japanese) {
+                         btn.classList.remove('hover:bg-sky-100', 'border-sky-200');
+                         btn.classList.add('correct');
+                    }
+                 });
+
+                // Add to incorrect lists (round and persistent)
+                if (!incorrectWordsInRound.some(word => word.english === currentWord.english)) {
+                    incorrectWordsInRound.push(currentWord);
+                }
+                 if (!persistentIncorrectWords.some(word => word.english === currentWord.english)) {
+                     persistentIncorrectWords.push(currentWord);
+                     localStorage.setItem('persistentIncorrectWords_v1', JSON.stringify(persistentIncorrectWords));
+                 }
+            }
+
+            // Show next or finish button
+            if (questionsAsked >= currentQuizWords.length) {
+                 finishButton.classList.remove('hidden');
+            } else {
+                 nextButton.classList.remove('hidden');
+                 nextButton.classList.remove('bg-gray-400'); // Enable button visually
+                 nextButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                 nextButton.disabled = false;
+            }
+             updateReviewButtonVisibility(); // Update visibility after saving mistakes
+        }
+
+        // 次の問題へ進む関数
+        function nextQuestion() {
+             nextButton.classList.add('hidden');
+             nextButton.classList.add('bg-gray-400'); // Disable button visually
+             nextButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+             nextButton.disabled = true;
+             displayQuestion();
+        }
+
+        // --- Screen Transitions ---
+        // スタート画面を表示
+        function showStartScreen() {
+            startScreen.classList.remove('hidden');
+            quizScreen.classList.add('hidden');
+            resultScreen.classList.add('hidden');
+            updateReviewButtonVisibility(); // Show review button if needed
+        }
+
+        // クイズ画面を表示
+        function showQuizScreen(review = false) {
+            isReviewMode = review;
+            score = 0;
+            questionsAsked = 0;
+            incorrectWordsInRound = [];
+
+            if (!prepareQuizWords()) { // Prepare words, check if review is possible
+                return; // Don't start quiz if review mode selected but no words to review
+            }
+
+            startScreen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+            resultScreen.classList.add('hidden');
+            nextButton.classList.add('hidden'); // Ensure next button is hidden initially
+            finishButton.classList.add('hidden'); // Ensure finish button is hidden initially
+            progressBar.style.width = '0%'; // Reset progress bar
+            progressText.textContent = `0/${currentQuizWords.length}`;
+
+            displayQuestion(); // Display the first question
+        }
+
+        // 結果画面を表示
+        function showResultScreen() {
+            startScreen.classList.add('hidden');
+            quizScreen.classList.add('hidden');
+            resultScreen.classList.remove('hidden');
+
+            scoreDisplay.textContent = `スコア: ${score} / ${currentQuizWords.length}`;
+
+            mistakesList.innerHTML = ''; // Clear previous mistakes
+            if (incorrectWordsInRound.length > 0) {
+                incorrectWordsInRound.forEach(word => {
+                    const li = document.createElement('li');
+                    li.textContent = `${word.english} - ${word.japanese}`;
+                    mistakesList.appendChild(li);
+                });
+                reviewMistakesButton.disabled = false;
+                reviewMistakesButton.classList.remove('disabled:opacity-50', 'disabled:cursor-not-allowed');
+
+            } else {
+                mistakesList.innerHTML = '<li>間違いはありませんでした！素晴らしい！</li>';
+                 reviewMistakesButton.disabled = true;
+                 reviewMistakesButton.classList.add('disabled:opacity-50', 'disabled:cursor-not-allowed');
+            }
+             updateReviewButtonVisibility(); // Update main review button state
+        }
+
+        // --- Review Button Visibility ---
+         function updateReviewButtonVisibility() {
+            if (persistentIncorrectWords.length > 0) {
+                 reviewButton.classList.remove('hidden'); // Show main review button
+            } else {
+                 reviewButton.classList.add('hidden'); // Hide main review button
+            }
+         }
+
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', () => showQuizScreen(false)); // Start normal quiz
+        reviewButton.addEventListener('click', () => showQuizScreen(true)); // Start review quiz from main screen
+        nextButton.addEventListener('click', nextQuestion);
+        finishButton.addEventListener('click', showResultScreen);
+        restartButton.addEventListener('click', () => showQuizScreen(false)); // Restart normal quiz from results
+        reviewMistakesButton.addEventListener('click', () => showQuizScreen(true)); // Start review quiz from results
+
+        // --- Initial Setup ---
+        showStartScreen(); // Show the start screen initially
+
+    </script>
+
+</body>
+</html>
